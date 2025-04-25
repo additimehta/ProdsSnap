@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageLayout from '@/components/PageLayout';
 import ProductCard from '@/components/ProductCard';
@@ -11,17 +10,37 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { mockProducts } from '@/data/mockData';
+} from '@/components/ui/select';
+import { Product } from '@/types';
 import { Package, Plus, Search } from 'lucide-react';
 
 const Products = () => {
+  const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
 
+  useEffect(() => {
+    fetch('http://localhost:8080/products')
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        console.log("✅ Data from server:", data);
+        if (!Array.isArray(data)) throw new Error("Expected an array");
+        setProducts(data);
+      })
+      .catch(err => {
+        console.error("❌ Fetch error:", err);
+        setProducts([]); // fallback to empty array to prevent null crash
+      });
+  }, []);
+  
+  
+
   // Filter products based on search query
-  const filteredProducts = mockProducts.filter(product => 
-    product.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredProducts = products.filter(product =>
+    product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     product.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -50,6 +69,7 @@ const Products = () => {
   return (
     <PageLayout>
       <div className="space-y-6 animate-fade-in">
+        {/* Top Heading + Button */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
           <div>
             <h1 className="text-3xl font-bold">Products</h1>
@@ -63,6 +83,7 @@ const Products = () => {
           </Button>
         </div>
 
+        {/* Search + Sort */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -91,29 +112,30 @@ const Products = () => {
           </div>
         </div>
 
+        {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {sortedProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+          {sortedProducts.length > 0 ? (
+            sortedProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))
+          ) : (
+            <div className="col-span-full text-center py-12 border border-dashed rounded-lg">
+              <Package className="h-12 w-12 mx-auto text-muted-foreground opacity-30" />
+              <h3 className="mt-4 text-lg font-medium">No products found</h3>
+              <p className="text-muted-foreground mt-1">
+                {searchQuery ? "Try a different search term" : "Get started by creating a new product"}
+              </p>
+              {!searchQuery && (
+                <Button variant="outline" asChild className="mt-4">
+                  <Link to="/products/new" className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    <span>Add Product</span>
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
         </div>
-        
-        {sortedProducts.length === 0 && (
-          <div className="text-center py-12 border border-dashed rounded-lg">
-            <Package className="h-12 w-12 mx-auto text-muted-foreground opacity-30" />
-            <h3 className="mt-4 text-lg font-medium">No products found</h3>
-            <p className="text-muted-foreground mt-1">
-              {searchQuery ? "Try a different search term" : "Get started by creating a new product"}
-            </p>
-            {!searchQuery && (
-              <Button variant="outline" asChild className="mt-4">
-                <Link to="/products/new" className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  <span>Add Product</span>
-                </Link>
-              </Button>
-            )}
-          </div>
-        )}
       </div>
     </PageLayout>
   );

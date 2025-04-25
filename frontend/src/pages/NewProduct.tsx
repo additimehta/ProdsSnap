@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -22,6 +22,9 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import PageLayout from '@/components/PageLayout';
 
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB max
+
+// Use zod, but we'll validate image separately (since react-hook-form doesn't manage File objects well)
 const formSchema = z.object({
   name: z.string().min(3, {
     message: 'Product name must be at least 3 characters.',
@@ -32,36 +35,88 @@ const formSchema = z.object({
   price: z.coerce.number().min(0.01, {
     message: 'Price must be at least 0.01',
   }),
-  initialVersion: z.string().min(1, {
-    message: 'Initial version is required.',
-  }),
   versionNotes: z.string().min(5, {
     message: 'Version notes must be at least 5 characters.',
   }),
+  // No image in schema - handle via local state + manual validation
 });
 
 const NewProduct = () => {
   const navigate = useNavigate();
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
       description: '',
       price: 0,
-      initialVersion: '1.0.0',
       versionNotes: 'Initial product launch',
     },
   });
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
-    toast.success('Product created', {
-      description: `${values.name} has been added to your products.`
-    });
-    navigate('/products');
+  // Local state for image file & preview
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  // Handle file picker
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setImageError('Please select an image file (jpeg/png/webp).');
+      setImageFile(null);
+      setImagePreview(null);
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setImageError('Image size must be less than 5MB.');
+      setImageFile(null);
+      setImagePreview(null);
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setImageError(null);
   };
 
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!imageFile) {
+      toast.error("Please upload an image.");
+      return;
+    }
+  
+    const formData = new FormData();
+    formData.append("name", values.name);
+    formData.append("description", values.description);
+    formData.append("price", values.price.toString());
+    formData.append("versionNotes", values.versionNotes || "Initial version");
+    formData.append("createdBy", "your-user-id"); 
+    formData.append("image", imageFile); 
+  
+    try {
+      const resp = await fetch('http://localhost:8080/products', {
+        method: 'POST',
+        body: formData, 
+      });
+  
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(errText || 'Failed to create product');
+      }
+  
+      toast.success('Product created successfully!');
+      navigate('/products');
+    } catch (err: any) {
+      toast.error('Failed to create product', {
+        description: err?.message || 'An error occurred. Please try again.',
+      });
+    }
+  };
+  
+
+  
   return (
     <PageLayout>
       <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
@@ -73,12 +128,12 @@ const NewProduct = () => {
             </Link>
           </Button>
         </div>
-        
+
         <div>
           <h1 className="text-3xl font-bold">Add New Product</h1>
           <p className="text-muted-foreground">Create a new product and track its versions</p>
         </div>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <Card>
@@ -89,7 +144,8 @@ const NewProduct = () => {
                     <h2 className="text-xl font-semibold">Product Information</h2>
                   </div>
                   <Separator />
-                  
+
+                  {/* Product Name */}
                   <FormField
                     control={form.control}
                     name="name"
@@ -106,7 +162,8 @@ const NewProduct = () => {
                       </FormItem>
                     )}
                   />
-                  
+
+                  {/* Product Description */}
                   <FormField
                     control={form.control}
                     name="description"
@@ -127,7 +184,8 @@ const NewProduct = () => {
                       </FormItem>
                     )}
                   />
-                  
+
+                  {/* Product Price */}
                   <FormField
                     control={form.control}
                     name="price"
@@ -144,10 +202,53 @@ const NewProduct = () => {
                       </FormItem>
                     )}
                   />
+
+                  {/* Product Image Upload */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Image className="h-5 w-5 text-primary" />
+                      <FormLabel>Product Image</FormLabel>
+                    </div>
+                    <div className="flex gap-4 items-center">
+                      <label htmlFor="product-image-upload">
+                        <input
+                          id="product-image-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageChange}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          asChild={false}
+                          onClick={() =>
+                            document.getElementById('product-image-upload')?.click()
+                          }
+                        >
+                          Select Image
+                        </Button>
+                      </label>
+                      {imagePreview && (
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="h-20 w-20 rounded-lg object-cover border"
+                        />
+                      )}
+                    </div>
+                    <FormDescription>
+                      Upload an image representing your product. (JPG, PNG, WebP, max 5MB)
+                    </FormDescription>
+                    {/* Show error if invalid */}
+                    {imageError && (
+                      <span className="text-destructive text-sm font-medium">{imageError}</span>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-6">
                 <div className="space-y-6">
@@ -156,24 +257,15 @@ const NewProduct = () => {
                     <h2 className="text-xl font-semibold">Initial Version</h2>
                   </div>
                   <Separator />
-                  
-                  <FormField
-                    control={form.control}
-                    name="initialVersion"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Version Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="1.0.0" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          The initial version number for your product (e.g., 1.0.0)
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
+
+                  <div className="px-1">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Your product will start at version <span className="font-medium text-foreground">1.0.0</span>. 
+                      Future versions will be automatically incremented.
+                    </p>
+                  </div>
+
+                  {/* Version Notes */}
                   <FormField
                     control={form.control}
                     name="versionNotes"
@@ -197,7 +289,7 @@ const NewProduct = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" type="button" onClick={() => navigate('/products')}>
                 Cancel
@@ -215,3 +307,4 @@ const NewProduct = () => {
 };
 
 export default NewProduct;
+

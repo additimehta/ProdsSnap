@@ -6,10 +6,11 @@ import {
   Search, 
   Filter, 
   Package, 
-  Tag, 
   Clock, 
   User,
-  ChevronRight
+  ChevronRight,
+  History,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,8 +22,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import PageLayout from '@/components/PageLayout';
 import { mockProducts } from '@/data/mockData';
+import { toast } from 'sonner';
 
 interface FlattenedVersion {
   id: string;
@@ -32,6 +40,8 @@ interface FlattenedVersion {
   changes: string;
   createdAt: string;
   createdBy: string;
+  isRevert?: boolean;
+  revertedFromVersion?: string;
 }
 
 const Versions = () => {
@@ -57,6 +67,7 @@ const Versions = () => {
     if (filter === 'all') return matchesSearch;
     if (filter === 'major') return matchesSearch && version.versionNumber.startsWith('1.');
     if (filter === 'minor') return matchesSearch && !version.versionNumber.startsWith('1.');
+    if (filter === 'reverts') return matchesSearch && version.isRevert;
     
     return matchesSearch;
   });
@@ -76,6 +87,13 @@ const Versions = () => {
         return 0;
     }
   });
+
+  const handleRevertVersion = (version: FlattenedVersion) => {
+    // In a real application, this would create a new version with the reverted changes
+    toast.success(`Reverted to version ${version.versionNumber}`, {
+      description: `Product ${version.productName} has been reverted to version ${version.versionNumber}`,
+    });
+  };
 
   return (
     <PageLayout>
@@ -107,6 +125,7 @@ const Versions = () => {
                 <SelectItem value="all">All Versions</SelectItem>
                 <SelectItem value="major">Major Versions</SelectItem>
                 <SelectItem value="minor">Minor Versions</SelectItem>
+                <SelectItem value="reverts">Reverts</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
@@ -125,14 +144,15 @@ const Versions = () => {
 
         <div className="space-y-4">
           {sortedVersions.map((version) => (
-            <Link 
+            <div 
               key={version.id} 
-              to={`/products/${version.productId}`}
               className="block border rounded-lg p-4 hover:shadow-md transition-shadow bg-card"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
-                  <Badge className="bg-primary w-16 justify-center">v{version.versionNumber}</Badge>
+                  <Badge className={`w-16 justify-center ${version.isRevert ? "bg-amber-500" : "bg-primary"}`}>
+                    v{version.versionNumber}
+                  </Badge>
                   <div>
                     <div className="font-medium">{version.productName}</div>
                     <div className="text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 mt-1">
@@ -144,18 +164,48 @@ const Versions = () => {
                         <User className="h-3.5 w-3.5 mr-1" />
                         {version.createdBy}
                       </span>
+                      {version.isRevert && (
+                        <span className="flex items-center text-amber-600">
+                          <History className="h-3.5 w-3.5 mr-1" />
+                          Reverted from v{version.revertedFromVersion}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center mt-2 sm:mt-0">
-                  <span className="text-primary text-sm mr-1">View Details</span>
-                  <ChevronRight className="h-4 w-4 text-primary" />
+                <div className="flex items-center mt-2 sm:mt-0 gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleRevertVersion(version);
+                          }}
+                          className="h-8"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                          Revert
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Revert to this version</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  
+                  <Link to={`/products/${version.productId}`} className="flex items-center">
+                    <span className="text-primary text-sm mr-1">View Details</span>
+                    <ChevronRight className="h-4 w-4 text-primary" />
+                  </Link>
                 </div>
               </div>
               <div className="mt-2">
                 <p className="text-sm line-clamp-2">{version.changes}</p>
               </div>
-            </Link>
+            </div>
           ))}
           
           {sortedVersions.length === 0 && (

@@ -1,4 +1,3 @@
-
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,21 +9,31 @@ interface ProductCardProps {
   product: Product;
 }
 
+// Your backend base URL (you could make this an environment variable later)
+const BASE_URL = 'http://localhost:8080';
+
 const ProductCard = ({ product }: ProductCardProps) => {
-  const latestVersion = product.versions[product.versions.length - 1];
-  
+  const latestVersion = product.versions?.length ? product.versions[product.versions.length - 1] : null;
+
+  // Final computed image URL
+  const imageUrl = product.image
+    ? `${BASE_URL}/${product.image}`  // If product has an image
+    : '/default-product.png';          // Else show fallback image (you can put a default-product.png in your public folder)
+
   return (
     <Card className="h-full overflow-hidden hover:shadow-md transition-shadow">
       <Link to={`/products/${product.id}`}>
         <div className="aspect-square relative overflow-hidden bg-secondary/20">
           <img 
-            src={product.image} 
-            alt={product.name} 
+            src={imageUrl}
+            alt={product.name || 'Product Image'} 
             className="object-cover w-full h-full"
           />
-          <Badge className="absolute top-2 right-2 bg-primary">
-            {product.versions.length} {product.versions.length === 1 ? 'version' : 'versions'}
-          </Badge>
+          {product.versions?.length > 0 && (
+            <Badge className="absolute top-2 right-2 bg-primary">
+              {product.versions.length} {product.versions.length === 1 ? 'version' : 'versions'}
+            </Badge>
+          )}
         </div>
         
         <CardHeader className="p-4 pb-0">
@@ -36,7 +45,9 @@ const ProductCard = ({ product }: ProductCardProps) => {
         </CardHeader>
         
         <CardContent className="p-4 pt-2">
-          <p className="text-sm text-muted-foreground line-clamp-2">{product.description}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {product.description || "No description available."}
+          </p>
         </CardContent>
         
         <CardFooter className="p-4 pt-0 flex flex-col items-start gap-1">

@@ -17,6 +17,8 @@ export interface ProductVersion {
   changes: string;
   createdAt: string;
   createdBy: string;
+  isRevert?: boolean;
+  revertedFromVersion?: string;
 }
 
 export interface User {

@@ -12,7 +12,9 @@ import {
   User,
   ChevronRight,
   GitBranch,
-  MoreVertical
+  MoreVertical,
+  RotateCcw,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,9 +28,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import PageLayout from '@/components/PageLayout';
 import { mockProducts } from '@/data/mockData';
 import { toast } from 'sonner';
+import { ProductVersion } from '@/types';
 
 const ProductDetail = () => {
   const { productId } = useParams<{ productId: string }>();
@@ -67,6 +84,12 @@ const ProductDetail = () => {
       description: "In a real application, this would delete the product."
     });
     navigate('/products');
+  };
+
+  const handleRevertVersion = (version: ProductVersion) => {
+    toast.success(`Reverted to version ${version.versionNumber}`, {
+      description: `Product ${product.name} has been reverted to version ${version.versionNumber}`
+    });
   };
 
   return (
@@ -211,7 +234,65 @@ const ProductDetail = () => {
               </Button>
             </div>
             
-            <div className="space-y-4">
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Version</TableHead>
+                    <TableHead>Changes</TableHead>
+                    <TableHead>Author</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedVersions.map((version, index) => (
+                    <TableRow key={version.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Badge className={version.isRevert ? "bg-amber-500" : "bg-primary"}>
+                            v{version.versionNumber}
+                          </Badge>
+                          {index === 0 && <Badge variant="outline">Latest</Badge>}
+                        </div>
+                        {version.isRevert && (
+                          <div className="text-xs text-amber-600 flex items-center mt-1">
+                            <History className="h-3 w-3 mr-1" />
+                            Revert of v{version.revertedFromVersion}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-xs">
+                        <p className="line-clamp-2">{version.changes}</p>
+                      </TableCell>
+                      <TableCell>{version.createdBy}</TableCell>
+                      <TableCell>{format(new Date(version.createdAt), 'MMM d, yyyy')}</TableCell>
+                      <TableCell className="text-right">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleRevertVersion(version)}
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Revert to this version</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+
+            <div className="space-y-4 mt-6">
+              <h3 className="text-lg font-medium">Timeline View</h3>
               {sortedVersions.map((version, index) => (
                 <div 
                   key={version.id} 
@@ -225,6 +306,7 @@ const ProductDetail = () => {
                         <GitBranch className="h-4 w-4 text-primary" />
                         <h3 className="font-medium">Version {version.versionNumber}</h3>
                         {index === 0 && <Badge>Latest</Badge>}
+                        {version.isRevert && <Badge variant="outline" className="bg-amber-500/20 text-amber-700">Revert</Badge>}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
@@ -238,6 +320,18 @@ const ProductDetail = () => {
                       </div>
                     </div>
                     <p>{version.changes}</p>
+                    
+                    <div className="flex justify-end mt-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleRevertVersion(version)}
+                        className="gap-2"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Revert to this version
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
