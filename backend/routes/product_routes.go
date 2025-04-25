@@ -6,6 +6,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+/*
+RULES FOR TESTING CRUD MODELS
+GO TO POSTMAN 
+CREATION: POST  URL: http://localhost:8080/products << have a json body 
+ADD VERSION: PUT URL:  http://localhost:8080/products/ { PRODUCT ID }/edit
+GET PRODUCT: GET URL:   http://localhost:8080/products/ { PRODUCT ID }
+GET ALL PRODUCTS: GET URL:   http://localhost:8080/products/
+DELETE PRODUCT: DELETE URL:   http://localhost:8080/products/ { PRODUCT ID }
+
+*/
+
+
 func RegisterProductRoutes(r *gin.Engine) {
 	products := r.Group("/products")
 	{

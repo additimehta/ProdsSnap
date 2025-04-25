@@ -2,11 +2,12 @@ package controllers
 
 import (
 	"context"
-	"net/http"
-	"time"
 	"fmt"
+	"net/http"
 	"prodsnap/config"
 	"prodsnap/models"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -14,91 +15,112 @@ import (
 )
 
 // CREATION
+
 func CreateProduct(c *gin.Context) {
-	var input struct {
-		Name        string `json:"name"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Price       string `json:"price"`
+	name := c.PostForm("name")
+	description := c.PostForm("description")
+	priceStr := c.PostForm("price")
+	createdBy := c.PostForm("createdBy")
+
+	price, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid price"})
+		return
 	}
 
-	if err := c.BindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+	file, err := c.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Image is required"})
+		return
+	}
+
+	filename := fmt.Sprintf("uploads/%s", file.Filename)
+	if err := c.SaveUploadedFile(file, filename); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
 		return
 	}
 
 	product := models.Product{
-		Name:      input.Name,
-		CreatedAt: time.Now(),
+		Name:        name,
+		Description: description,
+		Price:       price,
+		Image:       filename,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 		Versions: []models.Version{{
-			Title:       input.Title,
-			Description: input.Description,
-			Price:       input.Price,
-			Timestamp:   time.Now(),
+			ID:            primitive.NewObjectID(),
+			VersionNumber: "v1.0",
+			Changes:       "Initial version",
+			CreatedAt:     time.Now(),
+			CreatedBy:     createdBy,
 		}},
 	}
 
-	collection := config.DB.Collection("products")
-	res, err := collection.InsertOne(context.TODO(), product)
+	_, err = config.DB.Collection("products").InsertOne(context.TODO(), product)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
 		return
 	}
 
-	fmt.Printf("Inserted product ID: %v\n", res.InsertedID)
-
 	c.JSON(http.StatusCreated, gin.H{"message": "Product created successfully!"})
 }
 
-
+// edit the version
 func AddVersion(c *gin.Context) {
-	fmt.Println("EditProduct hit") 
 	id := c.Param("id")
-
-	var input struct {
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Price       string `json:"price"`
-	}
-
-	if err := c.BindJSON(&input); err != nil {
-		fmt.Println("⚠️ JSON bind error:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-		return
-	}
-
-	if input.Title == "" || input.Description == "" || input.Price == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "All fields are required"})
-		return
-	}
-
-	newVersion := models.Version{
-		Title:       input.Title,
-		Description: input.Description,
-		Price:       input.Price,
-		Timestamp:   time.Now(),
-	}
-
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
 		return
 	}
 
-	collection := config.DB.Collection("products")
-	update := bson.M{
-		"$push": bson.M{"versions": newVersion},
+	var input struct {
+		Title     string `json:"title"`
+		Changes   string `json:"changes"`
+		CreatedBy string `json:"createdBy"`
+	}
+	if err := c.BindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
 	}
 
+	collection := config.DB.Collection("products")
+	var product models.Product
+	if err := collection.FindOne(context.TODO(), bson.M{"_id": objID}).Decode(&product); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
+		return
+	}
+
+	nextVersion := "v1.0"
+	if len(product.Versions) > 0 {
+		last := product.Versions[len(product.Versions)-1]
+		var major int
+		fmt.Sscanf(last.VersionNumber, "v%d.0", &major)
+		nextVersion = fmt.Sprintf("v%d.0", major+1)
+	}
+
+	newVersion := models.Version{
+		ID:            primitive.NewObjectID(),
+		ProductID:     objID,
+		VersionNumber: nextVersion,
+		Title:         input.Title,
+		Changes:       input.Changes,
+		CreatedAt:     time.Now(),
+		CreatedBy:     input.CreatedBy,
+	}
+
+	update := bson.M{
+		"$push": bson.M{"versions": newVersion},
+		"$set":  bson.M{"updatedAt": time.Now()},
+	}
 	_, err = collection.UpdateOne(context.TODO(), bson.M{"_id": objID}, update)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add version"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Version added!"})
+	c.JSON(http.StatusOK, gin.H{"message": "Version added!", "versionNumber": nextVersion})
 }
-
 
 // Retrive the actual product
 func GetProduct(c *gin.Context) {
@@ -121,7 +143,6 @@ func GetProduct(c *gin.Context) {
 	c.JSON(http.StatusOK, product)
 }
 
-
 func GetAllProducts(c *gin.Context) {
 	collection := config.DB.Collection("products")
 	cursor, err := collection.Find(context.TODO(), bson.M{})
@@ -130,19 +151,19 @@ func GetAllProducts(c *gin.Context) {
 		return
 	}
 	defer cursor.Close(context.TODO())
+
 	var products []models.Product
 	if err := cursor.All(context.TODO(), &products); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse products"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode products"})
 		return
 	}
 
 	c.JSON(http.StatusOK, products)
 }
 
-
-
-func DeleteProduct(c *gin.Context ) {
+func DeleteProduct(c *gin.Context) {
 	id := c.Param("id")
+
 	objID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID"})
@@ -163,4 +184,3 @@ func DeleteProduct(c *gin.Context ) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Product deleted"})
 }
-

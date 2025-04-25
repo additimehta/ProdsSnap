@@ -1,7 +1,7 @@
 {
-    "name": "CapySticker",
-    "title": "Cute Capybara Sticker",
-    "description": "Capybara floating on a lily pad",
-    "price": "3.99"
-  }
-  
+  "name": "Capybara Mug",
+  "description": "A cozy mug featuring a capybara lounging in a hot spring.",
+  "price": 12.99,
+  "image": "https://example.com/capy-mug.jpg",
+  "createdBy": "Additi Mehta"
+}

@@ -16,6 +16,7 @@ func main() {
 	r.Use(cors.Default()) // related to the frontend work on later if u have time
 	routes.RegisterProductRoutes(r)
 	r.RedirectTrailingSlash = false
+	r.Static("/uploads", "./uploads")
 	fmt.Println("Server running on http://localhost:8080")
 	r.Run(":8080")
 }
