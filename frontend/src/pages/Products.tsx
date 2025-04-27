@@ -26,12 +26,16 @@ const Products = () => {
         return res.json();
       })
       .then(data => {
-        console.log("✅ Data from server:", data);
-        if (!Array.isArray(data)) throw new Error("Expected an array");
-        setProducts(data);
+        console.log("Data from server:", data);
+        if (!Array.isArray(data)) {
+          console.error("Backend did not return an array:", data);
+          setProducts([]);
+          return;
+        }
+          setProducts(data);
       })
       .catch(err => {
-        console.error("❌ Fetch error:", err);
+        console.error("Fetch error:", err);
         setProducts([]); // fallback to empty array to prevent null crash
       });
   }, []);

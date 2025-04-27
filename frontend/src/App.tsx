@@ -13,6 +13,7 @@ import Orders from "./pages/Orders";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import EditProduct from "./pages/EditProduct";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,8 @@ const App = () => (
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
+          <Route path="/products/:productId/edit" element={<EditProduct />} />
+
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { 
@@ -45,16 +45,47 @@ import {
 import PageLayout from '@/components/PageLayout';
 import { mockProducts } from '@/data/mockData';
 import { toast } from 'sonner';
-import { ProductVersion } from '@/types';
+import { Product, ProductVersion } from '@/types';
 
 const ProductDetail = () => {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'details' | 'versions'>('details');
-  
-  // Find the product with the matching ID
-  const product = mockProducts.find(p => p.id === productId);
-  
+  const [newImage, setNewImage] = useState<File | null>(null);
+
+
+  useEffect(() => {
+    if (!productId) return;
+
+    fetch(`http://localhost:8080/products/${productId}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch product');
+        return res.json();
+      })
+      .then(data => {
+        setProduct(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching product:', err);
+        navigate('/products'); // fallback if product not found
+      });
+  }, [productId, navigate]);
+
+
+  if (loading) {
+    return (
+      <PageLayout>
+        <div className="flex flex-col items-center justify-center h-[80vh]">
+          <h2 className="text-2xl font-bold">Loading product...</h2>
+        </div>
+      </PageLayout>
+    );
+  }
+
+
   if (!product) {
     return (
       <PageLayout>
@@ -79,18 +110,89 @@ const ProductDetail = () => {
     });
   };
 
-  const handleDelete = () => {
-    toast.error("Product deleted", {
-      description: "In a real application, this would delete the product."
-    });
-    navigate('/products');
+  const handleRevertVersion = async (version: ProductVersion) => {
+    if (!product) return;
+  
+    try {
+      const res = await fetch(`http://localhost:8080/products/${product.id}/revert`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          versionId: version.id
+        })
+      });
+  
+      if (!res.ok) throw new Error('Failed to revert product');
+  
+      toast.success(`Reverted to version ${version.versionNumber}`);
+      navigate(`/products/${product.id}`);
+      window.location.reload();
+    } catch (err) {
+      console.error('Failed to revert:', err);
+      toast.error('Failed to revert product');
+    }
+  };
+  
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product) return;
+  
+    const formData = new FormData();
+    formData.append('name', product.name);
+    formData.append('description', product.description);
+    formData.append('price', product.price.toString());
+    if (newImage) {
+      formData.append('image', newImage);
+    }
+  
+    try {
+      const res = await fetch(`http://localhost:8080/products/${product.id}/edit`, {
+        method: 'PUT',
+        body: formData,
+      });
+  
+      if (!res.ok) throw new Error('Failed to update product');
+  
+      const updatedProduct = await res.json(); // <- get fresh product if your backend returns it!
+  
+      toast.success('Product updated successfully!');
+      navigate(`/products/${product.id}`);
+      window.location.reload(); 
+      
+    } catch (err) {
+      console.error('Update failed:', err);
+      toast.error('Failed to update product');
+    }
   };
 
-  const handleRevertVersion = (version: ProductVersion) => {
-    toast.success(`Reverted to version ${version.versionNumber}`, {
-      description: `Product ${product.name} has been reverted to version ${version.versionNumber}`
-    });
+  
+
+  const handleDelete = () => {
+    if (!product) return;
+  
+    if (!window.confirm(`Are you sure you want to delete ${product.name}? This cannot be undone.`)) {
+      return;
+    }
+  
+    fetch(`http://localhost:8080/products/${product.id}`, {
+      method: 'DELETE',
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to delete product');
+        toast.success('Product deleted successfully');
+        navigate('/products');
+      })
+      .catch(err => {
+        console.error('Failed to delete:', err);
+        toast.error('Failed to delete product', {
+          description: 'Please try again later.',
+        });
+      });
   };
+  
 
   return (
     <PageLayout>
@@ -110,7 +212,7 @@ const ProductDetail = () => {
           <div>
             <h1 className="text-3xl font-bold">{product.name}</h1>
             <div className="flex flex-wrap gap-2 items-center mt-1">
-              <Badge className="bg-primary">v{sortedVersions[0].versionNumber}</Badge>
+              <Badge className="bg-primary">{sortedVersions[0].versionNumber}</Badge>
               <span className="text-sm text-muted-foreground">
                 <CalendarDays className="inline h-3.5 w-3.5 mr-1" />
                 Created on {format(new Date(product.createdAt), 'MMMM d, yyyy')}
@@ -179,7 +281,7 @@ const ProductDetail = () => {
                   <h4 className="font-medium mb-2">Current Version Details</h4>
                   <div className="bg-secondary/30 p-4 rounded-md">
                     <div className="flex items-center justify-between">
-                      <Badge>v{sortedVersions[0].versionNumber}</Badge>
+                      <Badge>{sortedVersions[0].versionNumber}</Badge>
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(sortedVersions[0].createdAt), 'MMM d, yyyy')}
                       </span>
@@ -251,14 +353,14 @@ const ProductDetail = () => {
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <Badge className={version.isRevert ? "bg-amber-500" : "bg-primary"}>
-                            v{version.versionNumber}
+                            {version.versionNumber}
                           </Badge>
                           {index === 0 && <Badge variant="outline">Latest</Badge>}
                         </div>
                         {version.isRevert && (
                           <div className="text-xs text-amber-600 flex items-center mt-1">
                             <History className="h-3 w-3 mr-1" />
-                            Revert of v{version.revertedFromVersion}
+                            Revert of {version.revertedFromVersion}
                           </div>
                         )}
                       </TableCell>

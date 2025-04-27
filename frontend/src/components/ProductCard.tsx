@@ -57,7 +57,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
           </div>
           {latestVersion && (
             <Badge variant="outline" className="text-xs bg-secondary/50">
-              v{latestVersion.versionNumber}
+              {latestVersion.versionNumber}
             </Badge>
           )}
         </CardFooter>

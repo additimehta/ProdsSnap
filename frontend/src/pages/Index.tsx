@@ -1,16 +1,43 @@
-
 import PageLayout from '@/components/PageLayout';
 import ProductCard from '@/components/ProductCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { mockProducts } from '@/data/mockData';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Plus, Search } from 'lucide-react';
+import { Product } from '@/types';
 
 const Index = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const recentProducts = mockProducts.slice(0, 4); 
+  //const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+ // const recentProducts = mockProducts.slice(0, 4); 
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('http://localhost:8080/products')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch products');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data) || data == null) {
+          setProducts(data);
+        } else {
+          console.error('Expected an array but got:', data);
+          setProducts([]);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load products:', err);
+        setProducts([]);
+        setLoading(false);
+      });
+  }, []);
+
+  const recentProducts = products.slice(0, 4);
+
   
   return (
     <PageLayout>
@@ -33,14 +60,14 @@ const Index = () => {
             <div className="col-span-1 md:col-span-1 p-6 bg-secondary/50 rounded-lg">
               <div className="space-y-2">
                 <h3 className="text-lg font-medium">Products</h3>
-                <div className="text-3xl font-bold">{mockProducts.length}</div>
+                <div className="text-3xl font-bold">{products.length}</div>
               </div>
             </div>
             <div className="col-span-1 md:col-span-1 p-6 bg-secondary/50 rounded-lg">
               <div className="space-y-2">
                 <h3 className="text-lg font-medium">Versions</h3>
                 <div className="text-3xl font-bold">
-                  {mockProducts.reduce((acc, product) => acc + product.versions.length, 0)}
+                  {products.reduce((acc, product) => acc + product.versions.length, 0)}
                 </div>
               </div>
             </div>
@@ -48,7 +75,9 @@ const Index = () => {
               <div className="space-y-2">
                 <h3 className="text-lg font-medium">Latest Update</h3>
                 <div className="text-xl font-medium">
-                  {new Date(Math.max(...mockProducts.map(p => new Date(p.updatedAt).getTime()))).toLocaleDateString()}
+                {products.length > 0
+                    ? new Date(Math.max(...products.map(p => new Date(p.updatedAt).getTime()))).toLocaleString()
+                    :'N/A'}
                 </div>
               </div>
             </div>

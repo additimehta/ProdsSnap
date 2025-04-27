@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { 
@@ -29,7 +29,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import PageLayout from '@/components/PageLayout';
-import { mockProducts } from '@/data/mockData';
+import { Product, ProductVersion } from '@/types';
 import { toast } from 'sonner';
 
 interface FlattenedVersion {
@@ -45,12 +45,37 @@ interface FlattenedVersion {
 }
 
 const Versions = () => {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    fetch('http://localhost:8080/products')
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch products');
+        return res.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setProducts(data);
+        } else {
+          console.error('Expected array but got:', data);
+          setProducts([]);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Fetch error:', err);
+        setProducts([]);
+        setLoading(false);
+      });
+  }, []);
+
   
   // Flatten product versions into a single array
-  const allVersions: FlattenedVersion[] = mockProducts.flatMap(product =>
+  const allVersions: FlattenedVersion[] = products.flatMap(product =>
     product.versions.map(version => ({
       ...version,
       productName: product.name
@@ -151,7 +176,7 @@ const Versions = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                   <Badge className={`w-16 justify-center ${version.isRevert ? "bg-amber-500" : "bg-primary"}`}>
-                    v{version.versionNumber}
+                    {version.versionNumber}
                   </Badge>
                   <div>
                     <div className="font-medium">{version.productName}</div>
@@ -167,7 +192,7 @@ const Versions = () => {
                       {version.isRevert && (
                         <span className="flex items-center text-amber-600">
                           <History className="h-3.5 w-3.5 mr-1" />
-                          Reverted from v{version.revertedFromVersion}
+                          Reverted from {version.revertedFromVersion}
                         </span>
                       )}
                     </div>
