@@ -21,7 +21,7 @@ const Index = () => {
         return res.json();
       })
       .then(data => {
-        if (Array.isArray(data) || data == null) {
+        if (Array.isArray(data)) {
           setProducts(data);
         } else {
           console.error('Expected an array but got:', data);
