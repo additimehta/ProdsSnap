@@ -26,6 +26,9 @@ func RegisterProductRoutes(r *gin.Engine) {
 		products.PUT("/:id/edit", controllers.AddVersion)
 	//	products.PUT("/:id/edit", controllers.EditProduct)  
 		products.POST("/:id/revert", controllers.RevertVersion)
+
+		products.POST("/:id/analytics", controllers.AnalyzeProduct)
+
 		// get product by id
 		products.GET("/:id", controllers.GetProduct)
 
