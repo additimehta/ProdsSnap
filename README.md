@@ -1,6 +1,6 @@
 # ProdsSnap
 
-**ProdSnap** is a product management tool that tracks product updates and stores version histories — like GitHub, but for products.  
+**ProdSnap** is a product management tool that tracks product updates and stores version histories, like GitHub, but for products.  
 It helps teams manage changes, revert to previous versions, and analyze product trends to make better decisions.
 
 ---
